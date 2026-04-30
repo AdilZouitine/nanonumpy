@@ -8,6 +8,8 @@ pub fn neon_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
     let len = a.len();
     let mut i = 0;
 
+    // AArch64 NEON uses 128-bit vector registers for this tutorial. With
+    // `f32`, that means 4 lanes per vector operation.
     while i + 4 <= len {
         // SAFETY: `i + 4 <= len` keeps the 4-lane NEON loads and store in bounds.
         unsafe {
@@ -20,6 +22,8 @@ pub fn neon_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
             // Add/sub/mul/div 4 f32 lanes in ARM vector registers.
             // Conceptual add:
             // fadd v2.4s, v0.4s, v1.4s
+            // `vdivq_f32` is available for AArch64. We do not fake division
+            // with reciprocal approximations in this teaching implementation.
             let vc = match op {
                 Op::Add => vaddq_f32(va, vb),
                 Op::Sub => vsubq_f32(va, vb),
@@ -32,5 +36,6 @@ pub fn neon_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
         i += 4;
     }
 
+    // Handle 0, 1, 2, or 3 leftover values with the portable scalar path.
     scalar::scalar_elementwise(&a[i..], &b[i..], &mut out[i..], op);
 }

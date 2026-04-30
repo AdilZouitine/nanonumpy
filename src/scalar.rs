@@ -1,9 +1,20 @@
 //! Portable scalar fallback used as the reference implementation.
+//!
+//! Every platform can run this code. SIMD implementations call back into this
+//! function for the "tail" elements left over after vector-width chunks.
 
 use crate::ops::Op;
 
 pub fn scalar_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
+    // `zip` walks the three slices together:
+    //
+    //   (a[0], b[0], out[0])
+    //   (a[1], b[1], out[1])
+    //   ...
+    //
+    // The caller validates equal lengths, so no element is dropped.
     for ((x, y), slot) in a.iter().zip(b).zip(out.iter_mut()) {
+        // Store into the caller-owned output buffer instead of allocating here.
         *slot = op.apply(*x, *y);
     }
 }

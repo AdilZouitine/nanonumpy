@@ -7,6 +7,12 @@
 use crate::ops::Op;
 
 pub fn naive_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
+    // Indexing keeps this intentionally close to the Python mental model:
+    //
+    //   out[i] = a[i] + b[i]
+    //
+    // There are no explicit SIMD intrinsics in this file. In release builds,
+    // LLVM may still recognize this loop and auto-vectorize it.
     for i in 0..a.len() {
         out[i] = op.apply(a[i], b[i]);
     }

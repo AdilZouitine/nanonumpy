@@ -1,13 +1,22 @@
 //! Runtime SIMD dispatch.
+//!
+//! This module answers one question: "which implementation is safe and useful
+//! on this machine right now?" Unsupported CPU instructions can crash the
+//! process, so target-specific SIMD must be behind compile-time and runtime
+//! guards.
 
 use crate::ops::Op;
 
 pub fn dispatch_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
+    // `dispatch_platform` has several definitions below. Rust selects exactly
+    // one at compile time using `#[cfg(target_arch = "...")]`.
     dispatch_platform(a, b, out, op);
 }
 
 #[cfg(target_arch = "x86_64")]
 fn dispatch_platform(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
+    // AVX2 is not guaranteed on every x86_64 CPU, so we ask the CPU and OS at
+    // runtime before calling a function compiled with AVX2 instructions.
     if std::is_x86_feature_detected!("avx2") {
         // SAFETY: Runtime detection above ensures this process may execute AVX2 instructions.
         unsafe {
@@ -16,6 +25,8 @@ fn dispatch_platform(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
         return;
     }
 
+    // SSE is effectively universal on x86_64, but it is still useful to show
+    // the same runtime-dispatch pattern as AVX2.
     if std::is_x86_feature_detected!("sse") {
         // SAFETY: Runtime detection above ensures this process may execute SSE instructions.
         unsafe {
@@ -24,12 +35,15 @@ fn dispatch_platform(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
         return;
     }
 
+    // If no explicit SIMD path is selected, fall back to ordinary portable
+    // Rust. This also documents what unsupported platforms would do.
     crate::scalar::scalar_elementwise(a, b, out, op);
 }
 
 #[cfg(target_arch = "aarch64")]
 fn dispatch_platform(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
-    // NEON is part of the baseline AArch64 architecture.
+    // NEON is part of the baseline AArch64 architecture, so a runtime feature
+    // check is not needed for normal aarch64 builds.
     crate::simd_arm::neon_elementwise(a, b, out, op);
 }
 
