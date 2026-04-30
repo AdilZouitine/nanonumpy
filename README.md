@@ -117,11 +117,11 @@ Expected output:
 
 Always use `--release` before benchmarking. Debug builds are useful for development, but their timings are not meaningful.
 
-## The Three Learning Levels
+## The Learning Levels
 
 Before looking at registers or CPU instructions, keep the learning path simple: every implementation computes the same arithmetic. What changes is where the loop runs and what kind of data the loop sees.
 
-The same mathematical operation is implemented three ways:
+Inside this repository, the same mathematical operation is implemented at three levels:
 
 ```text
 Level 0: Pure Python
@@ -148,8 +148,8 @@ Level 2: Rust SIMD
 | 0 | `add_py(a, b)` | [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) | Python interpreter baseline |
 | 1 | `add_rust(a, b)` | [`src/naive_rust.rs`](src/naive_rust.rs) | Python-to-Rust speedup |
 | 2 | `add(a, b)` | [`src/dispatch.rs`](src/dispatch.rs) | SIMD dispatch, still using list conversion |
-| 2 fast path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
-| 3 | NumPy | external library | Mature optimized arrays |
+| 2 buffer path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
+| External baseline | NumPy | external library | Mature optimized arrays |
 
 ## Clickable Reading Path
 
@@ -322,6 +322,8 @@ out = np.empty_like(a)
 nn.add_into(a, b, out)
 ```
 
+`add_into` returns `None`. The result is written into `out`.
+
 The important detail is `out = np.empty_like(a)`. The output memory already exists before the timed operation. Rust only fills it:
 
 ```text
@@ -383,7 +385,7 @@ The final thing Python imports is a native shared library. On Linux this is usua
 ```text
 Rust source code
       |
-      | cargo + maturin compile it
+      | cargo and maturin compile it
       v
 native shared library
       |
@@ -424,19 +426,20 @@ from nano_numpy_simd import _native
 print(_native.__file__)
 ```
 
-On this machine that prints:
+That prints a path like:
 
 ```text
-/Users/zouitineadil/Documents/GitHub/nanonumpy/nano_numpy_simd/_native.cpython-311-darwin.so
+/path/to/site-packages/nano_numpy_simd/_native.cpython-311-darwin.so
 ```
 
-Now ask the operating system what kind of file it is:
+From the shell, save that path and ask the operating system what kind of file it is:
 
 ```bash
-file nano_numpy_simd/_native.cpython-311-darwin.so
+EXT_PATH="$(uv run python -c 'from nano_numpy_simd import _native; print(_native.__file__)')"
+file "$EXT_PATH"
 ```
 
-Output:
+On macOS, the output may look like:
 
 ```text
 nano_numpy_simd/_native.cpython-311-darwin.so: Mach-O 64-bit dynamically linked shared library arm64
@@ -511,10 +514,18 @@ Python sees <built-in function add>
 _native.add([1.0], [2.0])
 ```
 
-The most important low-level symbol is the module initializer. You can list exported symbols with:
+The most important low-level symbol is the module initializer.
+
+On macOS, you can list exported symbols with:
 
 ```bash
-nm -gU nano_numpy_simd/_native.cpython-311-darwin.so
+nm -gU "$EXT_PATH"
+```
+
+On Linux, use:
+
+```bash
+nm -D "$EXT_PATH"
 ```
 
 Important output:
@@ -1086,7 +1097,7 @@ Rust &mut [f32]
 same Python output array
 ```
 
-On one Apple Silicon run with 5,000,000 values:
+Returning to the same Apple Silicon run from the top of the README:
 
 ```text
 Size: 5,000,000 float32 values
@@ -1203,8 +1214,6 @@ env -u CONDA_PREFIX uv run maturin develop --release
 - macOS Intel: scalar plus x86 SIMD.
 - Linux aarch64: scalar plus NEON.
 - macOS Apple Silicon: scalar plus NEON.
-
-The tutorial uses `x86_64`, not `x84`.
 
 ## Important Caveats
 
