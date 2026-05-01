@@ -4,6 +4,13 @@ use crate::ops::Op;
 use crate::scalar;
 use std::arch::x86_64::*;
 
+/// Applies an elementwise operation using AVX2 256-bit SIMD lanes.
+///
+/// # Safety
+///
+/// The caller must only call this function when AVX2 is available on the
+/// current CPU. The input slices and output slice must have matching lengths,
+/// and `out` must be valid for writing all computed elements.
 #[target_feature(enable = "avx2")]
 pub unsafe fn avx2_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
     let len = a.len();
@@ -48,6 +55,13 @@ pub unsafe fn avx2_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
     scalar::scalar_elementwise(&a[i..], &b[i..], &mut out[i..], op);
 }
 
+/// Applies an elementwise operation using SSE 128-bit SIMD lanes.
+///
+/// # Safety
+///
+/// The caller must only call this function when SSE is available on the current
+/// CPU. The input slices and output slice must have matching lengths, and `out`
+/// must be valid for writing all computed elements.
 #[target_feature(enable = "sse")]
 pub unsafe fn sse_elementwise(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
     let len = a.len();
