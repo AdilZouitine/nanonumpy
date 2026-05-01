@@ -84,7 +84,7 @@ Pure Python list      180.690 ms       1.00x
 Rust list API         126.435 ms       1.43x
 Rust buffer into        0.785 ms     230.13x
 NumPy allocated         0.776 ms     232.82x
-NumPy out=              0.770 ms     234.65x
+NumPy out =             0.770 ms     234.65x
 ```
 
 The useful lesson for Python developers: calling Rust is not automatically fast if Python still has to convert millions of objects. The speedup shows up when data is already in a contiguous numeric buffer.
