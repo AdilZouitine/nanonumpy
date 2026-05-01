@@ -1,8 +1,8 @@
 # nano-numpy-simd
 
-`nano-numpy-simd` is a tiny educational NumPy-like package written in Rust and exposed to Python.
+`nano-numpy-simd` is a tiny NumPy-like package written in Rust and exposed to Python.
 
-It teaches one simple idea from several angles: **where does the loop run, and how many numbers does one CPU instruction process?**
+It teaches one question from several angles: where does the loop run, and how many numbers does one CPU instruction process?
 
 The project implements 1D elementwise arithmetic on `f32` values:
 
@@ -11,9 +11,9 @@ The project implements 1D elementwise arithmetic on `f32` values:
 - `mul`
 - `div`
 
-It is intentionally small. The goal is not to replace NumPy. The goal is to help Python developers understand PyO3, maturin, FFI, Rust loops, SIMD dispatch, CPU registers, and benchmark pitfalls.
+It is intentionally small. It does not try to replace NumPy. It gives Python developers a compact way to study PyO3, maturin, FFI, Rust loops, SIMD dispatch, CPU registers, and benchmark pitfalls.
 
-## Install The Tools First
+## Install the tools first
 
 You need two toolchains:
 
@@ -40,7 +40,7 @@ cargo --version
 rustc --version
 ```
 
-## Why This Matters
+## Why this matters
 
 The fastest path in this tutorial is not the list API. It is the buffer API, where Python gives Rust direct access to contiguous `float32` memory and Rust writes into a preallocated output array.
 
@@ -56,7 +56,7 @@ NumPy allocated         0.776 ms     232.82x
 NumPy out=              0.770 ms     234.65x
 ```
 
-The lesson is important for Python developers: calling Rust is not automatically fast if Python still has to convert millions of objects. The big win appears when data is already in a contiguous numeric buffer.
+The useful lesson for Python developers: calling Rust is not automatically fast if Python still has to convert millions of objects. The speedup shows up when data is already in a contiguous numeric buffer.
 
 The rest of this README builds up to that result step by step. We start with normal Python lists, then look at how Python calls Rust, then look at memory layout, then finally explain why SIMD needs the data to have a very specific shape in RAM.
 
@@ -97,7 +97,7 @@ The rest of this README builds up to that result step by step. We start with nor
              fallback   AVX2 / SSE     NEON
 ```
 
-## Quick Start
+## Quick start
 
 Use `uv` for Python dependency management and `maturin` to build the Rust extension:
 
@@ -117,7 +117,7 @@ Expected output:
 
 Always use `--release` before benchmarking. Debug builds are useful for development, but their timings are not meaningful.
 
-## The Learning Levels
+## Learning levels
 
 Before looking at registers or CPU instructions, keep the learning path simple: every implementation computes the same arithmetic. What changes is where the loop runs and what kind of data the loop sees.
 
@@ -151,7 +151,7 @@ Level 2: Rust SIMD
 | 2 buffer path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
 | External baseline | NumPy | external library | Mature optimized arrays |
 
-## Clickable Reading Path
+## Clickable reading path
 
 The README explains the concepts in prose, but the repository is meant to be clicked through. If you are a Python developer new to Rust extensions, read the code in this order:
 
@@ -168,9 +168,9 @@ The README explains the concepts in prose, but the repository is meant to be cli
 11. [`python/examples/buffer_protocol_benchmark.py`](python/examples/buffer_protocol_benchmark.py) shows why preallocated buffers matter.
 12. [`tests/test_buffer_api.py`](tests/test_buffer_api.py) documents the fast-path safety rules with executable examples.
 
-## Basic Python List API
+## Basic Python list API
 
-The first API deliberately looks like normal Python. This lets us separate two questions: "does the package work?" and "why is one implementation faster?"
+The first API deliberately looks like normal Python. This separates two questions: "does the package work?" and "why is one implementation faster?"
 
 The list API is the easiest place to start because it looks like normal Python:
 
@@ -236,9 +236,9 @@ Clickable version of that path:
 - aarch64 SIMD code: [`src/simd_arm.rs`](src/simd_arm.rs)
 - scalar fallback: [`src/scalar.rs`](src/scalar.rs)
 
-## Faster Buffer API
+## Faster buffer API
 
-The list API is good for learning the call path, but it is not the data shape that high-performance numeric code wants. To understand the fast path, we need one low-level idea: a buffer.
+The list API is good for learning the call path, but it is not the data shape that fast numeric code wants. To understand the fast path, we need one low-level idea: a buffer.
 
 First, what is a buffer?
 
@@ -291,7 +291,7 @@ Rust cannot treat those pointers as `f32` values. It must ask Python/PyO3 to rea
 
 A numeric buffer is different: it is already a compact block of machine values. SIMD wants that second shape.
 
-Now the list API copy becomes easier to understand:
+With that in mind, the list API copy is easier to read:
 
 ```text
 Python list -> Rust Vec<f32> -> compute -> Python list
@@ -307,7 +307,7 @@ There are three expensive things in that short line:
 
 For simple operations like addition, the arithmetic is extremely cheap. Adding two `f32` values is not the expensive part. Moving data between Python objects, Rust vectors, and Python result lists can dominate the whole runtime.
 
-That is why the buffer API is not just a small optimization. It changes the benchmark from "how fast can Rust add?" plus "how expensive is Python object conversion?" into something much closer to "how fast can Rust process already-numeric memory?"
+The buffer API changes what the benchmark is measuring. It moves from "how fast can Rust add?" plus "how expensive is Python object conversion?" to something much closer to "how fast can Rust process already-numeric memory?"
 
 The faster API accepts Python buffers, such as NumPy `float32` arrays, and writes into a preallocated output array:
 
@@ -324,7 +324,7 @@ nn.add_into(a, b, out)
 
 `add_into` returns `None`. The result is written into `out`.
 
-The important detail is `out = np.empty_like(a)`. The output memory already exists before the timed operation. Rust only fills it:
+The detail to notice is `out = np.empty_like(a)`. The output memory already exists before the timed operation. Rust only fills it:
 
 ```text
 without preallocated output:
@@ -372,11 +372,11 @@ The buffer API avoids Python list conversion and output-list allocation:
     Python result list                  existing output array
 ```
 
-## What FFI Means
+## What FFI means
 
 At this point we have two Python-facing APIs, but both eventually call Rust. The next question is: how can Python call Rust at all?
 
-FFI means **Foreign Function Interface**. It is the mechanism that lets code written in one language call code written in another language.
+FFI means Foreign Function Interface. It is the mechanism that lets code written in one language call code written in another language.
 
 Python cannot directly call an ordinary Rust function because Rust has its own calling conventions, type system, ownership rules, name mangling, and memory model. PyO3 creates the CPython-compatible wrapper.
 
@@ -452,7 +452,7 @@ That line says:
 - `dynamically linked shared library`: loaded by another program at runtime, here the Python interpreter.
 - `arm64`: built for Apple Silicon / aarch64.
 
-For this tutorial, the most useful question is not "what does every assembly instruction do?" The useful question is: **what does Python see after it imports the compiled module?**
+For this tutorial, the most useful question is not "what does every assembly instruction do?" The useful question is: what does Python see after it imports the compiled module?
 
 Ask Python to list the functions exposed by the native module:
 
@@ -500,7 +500,7 @@ sub_rust: <built-in function sub_rust>
 
 The phrase `<built-in function add>` means Python sees a native function implemented by an extension module, not a Python function defined with `def add(...)`.
 
-This is the important connection:
+This is the connection:
 
 ```text
 Rust #[pyfunction] in src/lib.rs
@@ -514,7 +514,7 @@ Python sees <built-in function add>
 _native.add([1.0], [2.0])
 ```
 
-The most important low-level symbol is the module initializer.
+The low-level symbol to know is the module initializer.
 
 On macOS, you can list exported symbols with:
 
@@ -614,7 +614,7 @@ Under the hood, maturin builds a shared library with a Python-compatible name an
 uv run maturin develop --release
 ```
 
-### Ownership At The Boundary
+### Ownership at the boundary
 
 The list API and buffer API have different ownership stories:
 
@@ -678,7 +678,7 @@ same SIMD dispatcher as list API
 Python keeps using out_np
 ```
 
-## Memory Layout
+## Memory layout
 
 FFI explains how the call crosses from Python into Rust. Memory layout explains what Rust receives after that crossing. This matters because the CPU can only load neighboring values efficiently if those values are actually neighbors in memory.
 
@@ -716,7 +716,7 @@ b.as_ptr().add(i)       -> address of b[i]
 out.as_mut_ptr().add(i) -> address of out[i]
 ```
 
-## Scalar Loop
+## Scalar loop
 
 Once Rust has slices pointing at contiguous `f32` values, the simplest correct implementation is a scalar loop. Scalar means "one value at a time".
 
@@ -738,20 +738,20 @@ for i in 0..len:
     out[i] = a[i] + b[i]
 ```
 
-The important difference is that Rust is working with raw `f32` values in contiguous memory, not Python float objects. Python list iteration has interpreter overhead, dynamic objects, and reference counting. Rust's loop is compiled to machine code.
+The difference is that Rust is working with raw `f32` values in contiguous memory, not Python float objects. Python list iteration has interpreter overhead, dynamic objects, and reference counting. Rust's loop is compiled to machine code.
 
 One caveat: in release mode, LLVM may auto-vectorize simple loops. So "naive Rust" means the source code is naive. It does not guarantee that the final assembly contains no vector instructions.
 
-## SIMD In One Picture
+## SIMD in one picture
 
 The scalar loop is the reference: it is easy to understand and works everywhere. SIMD keeps the same mathematical result but changes the width of each step.
 
-SIMD means **Single Instruction, Multiple Data**. One instruction operates on several lanes.
+SIMD means Single Instruction, Multiple Data. One instruction operates on several lanes.
 
 Two words matter here:
 
-- A **register** is a tiny, extremely fast storage location inside the CPU. CPU instructions usually operate on values in registers, not directly on Python objects.
-- An **instruction** is one low-level operation the CPU can execute, such as "load memory", "add packed floats", or "store memory".
+- A register is a tiny, extremely fast storage location inside the CPU. CPU instructions usually operate on values in registers, not directly on Python objects.
+- An instruction is one low-level operation the CPU can execute, such as "load memory", "add packed floats", or "store memory".
 
 Scalar code uses ordinary registers for one value at a time:
 
@@ -811,7 +811,7 @@ XMM / NEON register, 128 bits
  lane0 lane1 lane2 lane3
 ```
 
-## Runtime Dispatch
+## Runtime dispatch
 
 SIMD sounds like one thing, but different CPUs speak different SIMD "dialects". x86_64 and aarch64 do not use the same instruction names or registers.
 
@@ -879,9 +879,9 @@ std::is_x86_feature_detected!("avx2")
 
 On aarch64, NEON is part of the baseline architecture, so the NEON path is compiled for that target.
 
-The dispatch layer is small but important. The Python function `nn.add(a, b)` does not know what CPU it is running on. The Rust dispatcher checks the target and available features, then calls the best supported implementation.
+The dispatch layer is small, but it does real work. The Python function `nn.add(a, b)` does not know what CPU it is running on. The Rust dispatcher checks the target and available features, then calls the best supported implementation.
 
-## AVX2 Loop Shape
+## AVX2 loop shape
 
 After dispatch chooses AVX2 on x86_64, the loop can use 256-bit YMM registers. This is the widest x86_64 path implemented in the tutorial.
 
@@ -923,7 +923,7 @@ Read the real implementation in [`src/simd_x86.rs`](src/simd_x86.rs). Look for:
 
 SSE in the same file uses 128-bit XMM registers and processes 4 `f32` values per iteration. That gives the tutorial a smaller x86_64 fallback before scalar code.
 
-## NEON Loop Shape
+## NEON loop shape
 
 On aarch64, the tutorial uses NEON. NEON uses 128-bit vector registers for this example, so it processes fewer `f32` lanes per instruction than AVX2, but the idea is the same: load a chunk, compute all lanes, store the chunk.
 
@@ -960,7 +960,7 @@ Read the real implementation in [`src/simd_arm.rs`](src/simd_arm.rs). Look for:
 
 This project does not fake NEON division with reciprocal approximations. It uses the stable AArch64 intrinsic.
 
-## Inspecting Generated Assembly
+## Inspecting generated assembly
 
 The intrinsic code is not the final machine code. The compiler lowers intrinsics, schedules instructions, allocates registers, and may inline functions.
 
@@ -979,7 +979,7 @@ cargo asm nano_numpy_simd::simd_x86::avx2_elementwise
 
 Always inspect release builds. Debug builds contain extra checks and are not representative of optimized code.
 
-## Tail Handling
+## Tail handling
 
 SIMD loops work in fixed-size chunks, but real arrays can have any length. That is why every SIMD implementation needs tail handling.
 
@@ -994,9 +994,9 @@ indexes:  0 1 2 3 4 5 6 7 | 8 9 10 11 12 13 14 15 | 16
 
 The tests include lengths `0, 1, 3, 4, 5, 7, 8, 9, 15, 16, 17` to exercise both vector chunks and tails.
 
-## What Happens Inside The CPU?
+## What happens inside the CPU?
 
-We now have enough pieces to describe the CPU work at a beginner level. Python has called Rust, Rust has selected the right implementation, and the SIMD loop is running over contiguous memory.
+We now have enough pieces to describe the CPU work at a beginner level. Python has called Rust, Rust has selected an implementation, and the SIMD loop is running over contiguous memory.
 
 At a simplified level, the CPU does this:
 
@@ -1055,9 +1055,9 @@ Performance can be limited by:
 
 This is why the tutorial compares several paths instead of claiming that SIMD always wins.
 
-## Why The List Benchmark Is Only A Little Faster
+## Why the list benchmark is only a little faster
 
-Now we can return to the benchmark from the top of the README. The list API is not slow because Rust cannot add numbers quickly. It is limited because the input and output are Python object containers.
+Now return to the benchmark from the top of the README. The list API is not slow because Rust cannot add numbers quickly. It is limited because the input and output are Python object containers.
 
 The list API benchmark includes more than arithmetic:
 
@@ -1111,7 +1111,7 @@ NumPy out=              0.770 ms     234.65x
 
 These numbers are examples from one machine. Run the benchmark locally.
 
-## Running The Benchmarks
+## Running the benchmarks
 
 ```bash
 uv sync --extra dev
@@ -1145,7 +1145,7 @@ Why this Rust tutorial can get close for `add_into`:
 - Rust dispatches to SIMD
 - there is no Python per-element loop
 
-## Safety Notes
+## Safety notes
 
 The fast path is low-level, so the code has to be explicit about safety. Rust normally protects you from invalid memory access, but SIMD intrinsics and Python buffers require carefully checked `unsafe` blocks.
 
@@ -1164,7 +1164,7 @@ The project keeps the unsafe boundary small:
 - x86_64 SIMD is guarded by runtime feature detection
 - buffer outputs must be writable and non-overlapping
 
-## Source Map
+## Source map
 
 | Concept | Source |
 |---|---|
@@ -1189,9 +1189,9 @@ The project keeps the unsafe boundary small:
 | NumPy comparison tests | [`tests/test_against_numpy.py`](tests/test_against_numpy.py) |
 | Buffer API tests | [`tests/test_buffer_api.py`](tests/test_buffer_api.py) |
 
-This README is the single source of truth for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.
+This README is the main guide for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.
 
-## Build And Test
+## Build and test
 
 ```bash
 uv sync --extra dev
@@ -1208,16 +1208,16 @@ If your local shell has both `VIRTUAL_ENV` and `CONDA_PREFIX` set, maturin may a
 env -u CONDA_PREFIX uv run maturin develop --release
 ```
 
-## Platform Notes
+## Platform notes
 
 - Linux x86_64: scalar plus x86 SIMD.
 - macOS Intel: scalar plus x86 SIMD.
 - Linux aarch64: scalar plus NEON.
 - macOS Apple Silicon: scalar plus NEON.
 
-## Important Caveats
+## Caveats
 
-The naive Rust baseline is source-level naive Rust. In optimized builds, LLVM may auto-vectorize simple loops. This is useful to discuss because modern compilers are smart. The explicit SIMD implementation is still valuable because it shows vector registers and instructions directly.
+The naive Rust baseline is source-level naive Rust. In optimized builds, LLVM may auto-vectorize simple loops. That is worth knowing because modern compilers are smart. The explicit SIMD implementation is still useful because it shows vector registers and instructions directly.
 
 Do not assume SIMD is always faster. Python-to-Rust conversion overhead can dominate for small arrays, and simple arithmetic can be limited by memory bandwidth. SIMD benefits become clearer when data is already contiguous and the output is preallocated.
 
