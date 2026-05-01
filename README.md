@@ -378,6 +378,8 @@ At this point we have two Python-facing APIs, but both eventually call Rust. The
 
 FFI means Foreign Function Interface. It is the mechanism that lets code written in one language call code written in another language.
 
+For a deeper explanation of FFI, this video is a useful companion: [FFI explanation](https://www.youtube.com/watch?v=XJC5WB2Bwrc).
+
 Python cannot directly call an ordinary Rust function because Rust has its own calling conventions, type system, ownership rules, name mangling, and memory model. PyO3 creates the CPython-compatible wrapper.
 
 The final thing Python imports is a native shared library. On Linux this is usually a `.so` file. On macOS the extension also behaves like a shared library, even though the filename commonly ends with something like `.so` for Python extension compatibility. You can think of it as:
@@ -696,6 +698,19 @@ base
    4B     4B     4B     4B     4B     4B     4B     4B
 ```
 
+This shape also helps the CPU cache. Main memory is much slower than the CPU, so CPUs keep recently used memory in small, fast caches. When code reads `a[0]`, the CPU usually loads a whole cache line, not just one `f32`. A cache line is commonly 64 bytes, enough for 16 neighboring `float32` values.
+
+```text
+one cache line, 64 bytes
+
+[a[0]][a[1]][a[2]][a[3]] ... [a[15]]
+  ^ read one value
+  |
+  +-- nearby values are pulled into cache too
+```
+
+If the next loop iterations read `a[1]`, `a[2]`, and `a[3]`, those values may already be in cache. That is a cache hit: the CPU finds the data in its fast cache instead of waiting for main memory. Contiguous numeric arrays make cache hits more likely because the loop walks through neighboring addresses. Scattered Python objects make that harder because following each pointer can jump to a different place in memory.
+
 A Rust slice, `&[f32]`, is a borrowed view:
 
 ```text
@@ -752,6 +767,8 @@ Two words matter here:
 
 - A register is a tiny, extremely fast storage location inside the CPU. CPU instructions usually operate on values in registers, not directly on Python objects.
 - An instruction is one low-level operation the CPU can execute, such as "load memory", "add packed floats", or "store memory".
+
+If you want to understand registers and how a CPU runs programs from the ground up, watch [Crafting a CPU to Run Programs](https://www.youtube.com/watch?v=GYlNoAMBY6o&t=11s) from Core Dumped.
 
 Scalar code uses ordinary registers for one value at a time:
 
