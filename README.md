@@ -244,6 +244,8 @@ First, what is a buffer?
 
 A buffer is a view of raw memory that Python can expose to other code. NumPy arrays, `array.array`, `bytearray`, and `memoryview` are common examples. Instead of saying "here is a Python list of objects", a buffer says "here is a pointer to a block of bytes, here is the element type, here is the shape, and here is how to move from one element to the next".
 
+If this idea is new, [An Introduction to the Python Buffer Protocol](https://jakevdp.github.io/blog/2014/05/05/introduction-to-the-python-buffer-protocol/) is the best next read. It explains why Python objects can expose raw memory to other code, which is exactly what makes `add_into(a, b, out)` avoid extra copies.
+
 For this tutorial, the useful case is a NumPy `float32` array:
 
 ```text
@@ -684,6 +686,8 @@ Python keeps using out_np
 
 FFI explains how the call crosses from Python into Rust. Memory layout explains what Rust receives after that crossing. This matters because the CPU can only load neighboring values efficiently if those values are actually neighbors in memory.
 
+For the full NumPy side of this topic, keep the [NumPy ndarray reference](https://numpy.org/doc/2.4/reference/arrays.ndarray.html) nearby. It is the official anchor for `dtype`, shape, strides, contiguity, item size, and why a NumPy `float32` array is so different from a Python list.
+
 SIMD wants contiguous memory. A `Vec<f32>` or contiguous NumPy `float32` array stores values side by side:
 
 ```text
@@ -789,6 +793,8 @@ result:            [a0+b0, a1+b1, a2+b2, a3+b3]
 ```
 
 For Python developers, a helpful mental model is: SIMD is like doing a small fixed-size list operation inside one CPU instruction. The real hardware is more complex, but that intuition explains why contiguous numeric memory matters.
+
+If you want a gentle next step, [Vectorization part 1. Intro — easyperf](https://easyperf.net/blog/2017/10/24/Vectorization_part1) shows scalar and vectorized loops side by side. The rest of the series is worth reading in this order for this project: vectorization warmup, compiler vectorization reports, vectorization width, multiversioning by data dependency, multiversioning by trip counts, and tips for writing vectorizable code.
 
 ```text
 Scalar:
@@ -898,6 +904,8 @@ On aarch64, NEON is part of the baseline architecture, so the NEON path is compi
 
 The dispatch layer is small, but it does real work. The Python function `nn.add(a, b)` does not know what CPU it is running on. The Rust dispatcher checks the target and available features, then calls the best supported implementation.
 
+For a deeper look at why simple-looking SIMD problems become subtle, read [Understanding SIMD: Infinite Complexity of Trivial Problems](https://www.modular.com/blog/understanding-simd-infinite-complexity-of-trivial-problems). It pairs well with runtime dispatch, platform differences, and the caveats near the end of this README.
+
 ## AVX2 loop shape
 
 After dispatch chooses AVX2 on x86_64, the loop can use 256-bit YMM registers. This is the widest x86_64 path implemented in the tutorial.
@@ -937,6 +945,8 @@ Read the real implementation in [`src/simd_x86.rs`](src/simd_x86.rs). Look for:
 - `_mm256_mul_ps`: multiply 8 lanes
 - `_mm256_div_ps`: divide 8 lanes
 - `_mm256_storeu_ps`: store 8 contiguous `f32` results
+
+If you want to see those intrinsics explained visually, [SIMD and vectorization using AVX intrinsic functions](https://www.youtube.com/watch?v=AT5nuQQO96o) is a good companion while reading `src/simd_x86.rs`.
 
 SSE in the same file uses 128-bit XMM registers and processes 4 `f32` values per iteration. That gives the tutorial a smaller x86_64 fallback before scalar code.
 
