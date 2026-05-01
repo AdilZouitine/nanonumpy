@@ -138,6 +138,15 @@ uv run maturin develop --release
 uv run python python/examples/basic_usage.py
 ```
 
+Example inputs:
+
+```python
+a = [1.0, 2.0, 3.0, 4.0]
+b = [10.0, 20.0, 30.0, 40.0]
+```
+
+Each implementation computes element-wise addition: `a[i] + b[i]`.
+
 Expected output:
 
 ```python
