@@ -23,8 +23,8 @@ It is intentionally small. It does not try to replace NumPy. It gives Python dev
   - [Learning levels](#learning-levels)
   - [Source map](#source-map)
   - [Clickable reading path](#clickable-reading-path)
-- Implementation path
-  - [Basic Python list API](#basic-python-list-api)
+- Tutorial implementation path
+  - [Start here: Basic Python list API](#start-here-basic-python-list-api)
   - [Faster buffer API](#faster-buffer-api)
   - [What FFI means](#what-ffi-means)
   - [Memory layout](#memory-layout)
@@ -235,7 +235,7 @@ The README explains the concepts in prose, but the repository is meant to be cli
 11. [`python/examples/buffer_protocol_benchmark.py`](python/examples/buffer_protocol_benchmark.py) shows why preallocated buffers matter.
 12. [`tests/test_buffer_api.py`](tests/test_buffer_api.py) documents the fast-path safety rules with executable examples.
 
-## Basic Python list API
+## Start here: Basic Python list API
 
 The first API deliberately looks like normal Python. This separates two questions: "does the package work?" and "why is one implementation faster?"
 
