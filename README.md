@@ -13,6 +13,37 @@ The project implements 1D elementwise arithmetic on `f32` values:
 
 It is intentionally small. It does not try to replace NumPy. It gives Python developers a compact way to study PyO3, maturin, FFI, Rust loops, SIMD dispatch, CPU registers, and benchmark pitfalls.
 
+## Table of contents
+
+- Getting started
+  - [Install the tools first](#install-the-tools-first)
+  - [Why this matters](#why-this-matters)
+  - [Quick start](#quick-start)
+- Guide map
+  - [Learning levels](#learning-levels)
+  - [Source map](#source-map)
+  - [Clickable reading path](#clickable-reading-path)
+- Implementation path
+  - [Basic Python list API](#basic-python-list-api)
+  - [Faster buffer API](#faster-buffer-api)
+  - [What FFI means](#what-ffi-means)
+  - [Memory layout](#memory-layout)
+  - [Scalar loop](#scalar-loop)
+- SIMD and CPU details
+  - [SIMD in one picture](#simd-in-one-picture)
+  - [Runtime dispatch](#runtime-dispatch)
+  - [AVX2 loop shape](#avx2-loop-shape)
+  - [NEON loop shape](#neon-loop-shape)
+  - [Inspecting generated assembly](#inspecting-generated-assembly)
+  - [Tail handling](#tail-handling)
+  - [What happens inside the CPU?](#what-happens-inside-the-cpu)
+- Validation and results
+  - [Why the list benchmark is only a little faster](#why-the-list-benchmark-is-only-a-little-faster)
+  - [Running the benchmarks](#running-the-benchmarks)
+  - [Safety notes](#safety-notes)
+- Going further
+  - [What would be next to become a real NumPy](#what-would-be-next-to-become-a-real-numpy)
+
 ## Install the tools first
 
 You need two toolchains:
@@ -150,6 +181,33 @@ Level 2: Rust SIMD
 | 2 | `add(a, b)` | [`src/dispatch.rs`](src/dispatch.rs) | SIMD dispatch, still using list conversion |
 | 2 buffer path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
 | External baseline | NumPy | external library | Mature optimized arrays |
+
+## Source map
+
+| Concept | Source |
+|---|---|
+| Python exports | [`nano_numpy_simd/__init__.py`](nano_numpy_simd/__init__.py) |
+| Pure Python baseline | [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) |
+| PyO3 list functions | [`src/lib.rs`](src/lib.rs) |
+| PyO3 buffer functions | [`src/lib.rs`](src/lib.rs) |
+| Shared operation validation | [`src/ops.rs`](src/ops.rs) |
+| Naive Rust loop | [`src/naive_rust.rs`](src/naive_rust.rs) |
+| Scalar fallback | [`src/scalar.rs`](src/scalar.rs) |
+| Runtime dispatch | [`src/dispatch.rs`](src/dispatch.rs) |
+| x86_64 AVX2/SSE | [`src/simd_x86.rs`](src/simd_x86.rs) |
+| aarch64 NEON | [`src/simd_arm.rs`](src/simd_arm.rs) |
+| FFI source notes | [`src/ffi_explain.rs`](src/ffi_explain.rs) |
+| Assembly source notes | [`src/asm_explain.rs`](src/asm_explain.rs) |
+| Basic usage example | [`python/examples/basic_usage.py`](python/examples/basic_usage.py) |
+| List benchmark | [`python/examples/benchmark.py`](python/examples/benchmark.py) |
+| Buffer benchmark | [`python/examples/buffer_protocol_benchmark.py`](python/examples/buffer_protocol_benchmark.py) |
+| Full comparison | [`python/examples/full_performance_comparison.py`](python/examples/full_performance_comparison.py) |
+| Basic tests | [`tests/test_basic.py`](tests/test_basic.py) |
+| Error tests | [`tests/test_errors.py`](tests/test_errors.py) |
+| NumPy comparison tests | [`tests/test_against_numpy.py`](tests/test_against_numpy.py) |
+| Buffer API tests | [`tests/test_buffer_api.py`](tests/test_buffer_api.py) |
+
+This README is the main guide for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.
 
 ## Clickable reading path
 
@@ -812,6 +870,28 @@ SIMD:
   register C: [ c0 | c1 | c2 | c3 ]
 ```
 
+The number of lanes processed by one SIMD instruction is the vectorization width. You can think of it as the fixed batch size of the CPU instruction.
+
+The width depends on two things: the size of the vector register and the size of each element:
+
+```text
+vectorization width = SIMD register size / element size
+```
+
+For example, a 256-bit AVX2 register can hold eight `f32` values because each `f32` is 32 bits:
+
+```text
+256 bits / 32 bits = 8 lanes
+```
+
+The same register holds only four `f64` values:
+
+```text
+256 bits / 64 bits = 4 lanes
+```
+
+This is why SIMD code usually moves through an array in fixed-size chunks, then uses a scalar tail loop for the remaining values when the array length is not a multiple of the vectorization width.
+
 For AVX2 with `f32`, the register has 8 lanes:
 
 ```text
@@ -1191,70 +1271,257 @@ The project keeps the unsafe boundary small:
 - x86_64 SIMD is guarded by runtime feature detection
 - buffer outputs must be writable and non-overlapping
 
-## Source map
+## What would be next to become a real NumPy
 
-| Concept | Source |
-|---|---|
-| Python exports | [`nano_numpy_simd/__init__.py`](nano_numpy_simd/__init__.py) |
-| Pure Python baseline | [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) |
-| PyO3 list functions | [`src/lib.rs`](src/lib.rs) |
-| PyO3 buffer functions | [`src/lib.rs`](src/lib.rs) |
-| Shared operation validation | [`src/ops.rs`](src/ops.rs) |
-| Naive Rust loop | [`src/naive_rust.rs`](src/naive_rust.rs) |
-| Scalar fallback | [`src/scalar.rs`](src/scalar.rs) |
-| Runtime dispatch | [`src/dispatch.rs`](src/dispatch.rs) |
-| x86_64 AVX2/SSE | [`src/simd_x86.rs`](src/simd_x86.rs) |
-| aarch64 NEON | [`src/simd_arm.rs`](src/simd_arm.rs) |
-| FFI source notes | [`src/ffi_explain.rs`](src/ffi_explain.rs) |
-| Assembly source notes | [`src/asm_explain.rs`](src/asm_explain.rs) |
-| Basic usage example | [`python/examples/basic_usage.py`](python/examples/basic_usage.py) |
-| List benchmark | [`python/examples/benchmark.py`](python/examples/benchmark.py) |
-| Buffer benchmark | [`python/examples/buffer_protocol_benchmark.py`](python/examples/buffer_protocol_benchmark.py) |
-| Full comparison | [`python/examples/full_performance_comparison.py`](python/examples/full_performance_comparison.py) |
-| Basic tests | [`tests/test_basic.py`](tests/test_basic.py) |
-| Error tests | [`tests/test_errors.py`](tests/test_errors.py) |
-| NumPy comparison tests | [`tests/test_against_numpy.py`](tests/test_against_numpy.py) |
-| Buffer API tests | [`tests/test_buffer_api.py`](tests/test_buffer_api.py) |
+This project is intentionally small. It teaches the path from Python lists to Rust buffers and SIMD kernels. A real NumPy-like library needs several larger components around that core.
 
-This README is the main guide for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.
+### Array object
 
-## Build and test
+The first missing piece is a real array type. It would own or borrow memory and store the metadata needed to interpret that memory.
 
-```bash
-uv sync --extra dev
-uv run maturin develop --release
-uv run pytest
-cargo test
-cargo clippy -- -D warnings
-cargo fmt --check
+A pointer or buffer owner tells the array where the actual bytes live and who is responsible for keeping that memory alive. Without this, the array cannot safely know whether the memory is still valid.
+
+The shape tells the array how many dimensions it has and how large each dimension is. For example, shape `(2, 3)` means two rows and three columns.
+
+The strides tell the array how many bytes to jump in memory when moving by one step along each dimension. This is what makes slices, transposes, and non-contiguous views possible.
+
+The dtype tells the array how to interpret the bytes. The same raw memory could be read as `float32`, `int64`, `bool`, or another type depending on the dtype metadata.
+
+The length tells the array how many logical elements it contains. This is useful for validation, iteration, bounds checks, and deciding how much work a kernel has to do.
+
+The byte offset lets a view start in the middle of another array's memory without copying. A slice can point to the same storage but begin at a later byte.
+
+The read-only or writable flag prevents unsafe writes into memory that should not be modified. This matters when memory comes from another Python object, a shared view, or an external buffer.
+
+With this, the library can represent more than flat contiguous `f32` arrays. It can represent views, slices, transposes, reshapes, and arrays that share the same memory.
+
+### Dtype system
+
+NumPy supports many data types. A real version would need a dtype system that explains how raw bytes should be interpreted and how different types interact.
+
+Element size tells the array how many bytes each value occupies. A `float32` uses `4` bytes, while a `float64` uses `8` bytes, so the same memory buffer length can contain different numbers of logical elements depending on the dtype.
+
+Alignment describes where values should start in memory for efficient and valid access. Some CPUs can read unaligned values, but aligned memory is often faster and safer for SIMD kernels.
+
+Signed and unsigned integers need different interpretation rules. The same byte pattern can mean a negative number for a signed integer or a large positive number for an unsigned integer.
+
+Floats need their own handling because they follow floating-point rules. They can represent fractional values, infinities, and `NaN`, and operations on them may have rounding behavior.
+
+Booleans are another dtype family. They are often stored compactly and are commonly produced by comparisons such as `array > 0`.
+
+Type promotion rules decide the result dtype when different input dtypes meet. For example, adding an integer array to a floating-point array usually produces a floating-point result.
+
+Casting rules decide when one dtype can be converted to another. Some casts are safe, such as `int32` to `int64`, while others can lose information, such as `float64` to `int32`.
+
+The current code only handles `f32`. Supporting `f64`, integers, and booleans would require either generic kernels, generated kernels, or carefully organized per-dtype implementations.
+
+### Shape and stride engine
+
+Shapes and strides are what make multidimensional arrays work without copying data. They let one flat memory buffer behave like a matrix, a tensor, a slice, or a transposed view.
+
+Indexing uses the shape and strides to turn a logical position, such as row `1` and column `2`, into a byte address inside the flat buffer.
+
+Slicing creates a smaller view of the same memory. Instead of copying values, the array can change its shape, strides, and byte offset to describe the selected region.
+
+Reshaping changes how the same elements are grouped into dimensions. When the memory layout allows it, reshape can be metadata-only. When the layout is too irregular, it may require a copy.
+
+Transposing swaps dimensions by changing the order of the shape and strides. This is why a transpose can often be created instantly without moving any data.
+
+Contiguous layouts store neighboring logical elements next to each other in memory. Non-contiguous layouts appear after operations like slicing with a step or transposing an array.
+
+Row-major and column-major views describe which dimension moves fastest in memory. C and NumPy usually use row-major order by default, while Fortran and many linear algebra libraries often use column-major order.
+
+For a simple row-major `2 x 3` array, the data may be stored as one flat buffer:
+
+```text
+Logical array:
+
+  [[1, 2, 3],
+   [4, 5, 6]]
+
+Flat memory:
+
+  index:  0   1   2   3   4   5
+  value:  1   2   3   4   5   6
+
+Metadata:
+
+  shape   = (2, 3)
+  strides = (12, 4)   # for float32: 3 values per row * 4 bytes, then 1 value * 4 bytes
 ```
 
-If your local shell has both `VIRTUAL_ENV` and `CONDA_PREFIX` set, maturin may ask you to unset one. This local workaround is often enough:
+The shape says this is a matrix with `2` rows and `3` columns. The strides say how to move through the flat memory. To move down one row, jump `12` bytes. To move right one column, jump `4` bytes.
 
-```bash
-env -u CONDA_PREFIX uv run maturin develop --release
+A transpose can often be represented by changing only the metadata:
+
+```text
+Original:
+
+  shape   = (2, 3)
+  strides = (12, 4)
+
+Transposed view:
+
+  shape   = (3, 2)
+  strides = (4, 12)
 ```
 
-## Platform notes
+The underlying bytes do not move. The array just reads them in a different order.
 
-- Linux x86_64: scalar plus x86 SIMD.
-- macOS Intel: scalar plus x86 SIMD.
-- Linux aarch64: scalar plus NEON.
-- macOS Apple Silicon: scalar plus NEON.
+Many operations should work on strided views directly. When that is too slow or too complex, the library can copy into a contiguous temporary buffer.
 
-## Caveats
+### Broadcasting
 
-The naive Rust baseline is source-level naive Rust. In optimized builds, LLVM may auto-vectorize simple loops. That is worth knowing because modern compilers are smart. The explicit SIMD implementation is still useful because it shows vector registers and instructions directly.
+Broadcasting lets operations combine arrays with different but compatible shapes. For example, adding a vector to every row of a matrix requires shape analysis before the kernel runs.
 
-Do not assume SIMD is always faster. Python-to-Rust conversion overhead can dominate for small arrays, and simple arithmetic can be limited by memory bandwidth. SIMD benefits become clearer when data is already contiguous and the output is preallocated.
+The first step is to compare input shapes from the right. The rightmost dimensions describe the innermost elements, so those are matched first.
 
-## Limitations
+Dimensions of size `1` can be expanded virtually. This means the value is reused across a larger dimension without physically copying it.
 
-- Only `f32` is supported.
-- Only 1D arrays are supported.
-- No broadcasting.
-- No shapes or strides beyond requiring simple contiguous buffers.
-- No direct alignment experiments yet.
-- No wheel build matrix yet.
-- Benchmark results depend heavily on CPU, compiler, and input size.
-- Naive Rust source code may still be auto-vectorized by LLVM in release builds.
+After checking compatibility, the engine computes the output shape. For example, combining shape `(2, 3)` with shape `(3,)` produces shape `(2, 3)`.
+
+Broadcasted dimensions use virtual strides. If a value is reused along an expanded dimension, the stride for that dimension can behave like `0`, meaning the kernel keeps reading the same value while the other array moves forward.
+
+If two dimensions are incompatible, the operation should fail before the kernel runs. For example, shapes `(2, 3)` and `(4,)` cannot be broadcast together because `3` and `4` do not match and neither one is `1`.
+
+### Universal functions
+
+NumPy's elementwise operations are implemented as ufuncs. A ufunc is a reusable operation object that knows how to apply the same operation across arrays.
+
+The simplest ufuncs are arithmetic operations such as `add`, `subtract`, `multiply`, and `divide`. They usually read one element from each input array and write one element to the output array.
+
+Comparisons are also ufuncs. Operations such as `<`, `>`, and `==` still walk over the input arrays element by element, but they produce boolean output instead of numeric output.
+
+Math functions such as `sin`, `exp`, and `sqrt` are ufuncs too. They often need specialized implementations because they are more complex than basic arithmetic and may use approximations, lookup strategies, or hardware instructions depending on the dtype and CPU.
+
+The important part is that all these operations can share one execution model. Each ufunc chooses the right inner loop based on dtype, shape, strides, broadcasting, and CPU features.
+
+### Memory management
+
+A real array library needs clear ownership rules. It must know whether memory comes from Python, Rust, another array view, or an external buffer.
+
+The first important piece is reference-counted storage. Multiple arrays can point to the same underlying memory, so the storage must stay alive until the last array or view stops using it.
+
+Once storage can be shared, the library needs safe views into that shared storage. A slice, reshape, or transpose should be able to reuse the original bytes without copying them, but it must still respect bounds, dtype, shape, and strides.
+
+Mutation makes this more delicate. If two arrays share the same memory, writing through one view can change what the other view sees. Some libraries allow that directly, while others use copy-on-write decisions to copy the data before mutation when sharing would be surprising or unsafe.
+
+Memory alignment is another performance detail. SIMD instructions often work best when data starts at addresses aligned to specific byte boundaries, so the allocator and array metadata should preserve useful alignment guarantees when possible.
+
+Temporary allocation reuse helps avoid repeated memory allocation inside chained operations. For example, an expression may need short-lived intermediate buffers, and reusing those buffers can reduce overhead.
+
+Finally, safe interoperability with the Python buffer protocol lets the array exchange memory with Python objects such as `array.array`, `memoryview`, and NumPy arrays. This is necessary for zero-copy interoperability, but it requires careful lifetime and mutability checks.
+
+### Kernel dispatch
+
+The current project already has a small dispatch layer. A larger version would expand it into a full kernel selection system:
+
+A scalar fallback is the simplest implementation. It processes one value at a time and works on every CPU, so it is the safe baseline when no specialized instruction set is available.
+
+Once that baseline exists, the next question is what the current CPU can do faster.
+
+SIMD kernels per architecture use CPU-specific vector instructions. An x86_64 machine may use SSE, AVX, AVX2, or AVX-512, while an aarch64 machine may use NEON. These kernels are necessary because different processors expose different vector registers and instructions.
+
+After choosing a CPU-specific path, the dispatch layer also has to look at the memory layout.
+
+Contiguous fast paths handle arrays whose elements are stored next to each other in memory. This is the easiest layout for the CPU to read efficiently, so it is usually where the fastest loops and SIMD kernels live.
+
+Not every array is contiguous, though. Views can point to the same memory while walking through it differently.
+
+Strided loops handle views where neighboring logical elements are not necessarily neighboring memory addresses. They are necessary for slices, transposes, and other views that should avoid copying data.
+
+The best choice also depends on how much work there is.
+
+Small-array paths avoid spending more time on setup than on computation. For tiny inputs, checking CPU features, preparing threads, or entering a complex SIMD loop can cost more than a simple scalar loop.
+
+For large inputs, the trade-off changes again.
+
+Multithreaded paths split large arrays across CPU cores. They are useful when the array is big enough that the extra coordination cost is smaller than the time saved by doing work in parallel.
+
+The dispatch layer should hide CPU-specific details from the Python API.
+
+### Reductions and aggregations
+
+Operations like `sum`, `mean`, `min`, `max`, and `argmax` need different kernels from elementwise operations. They also need axis handling.
+
+Elementwise kernels usually read one or more input elements and write one output element for each position:
+
+```text
+add:
+
+  output[i] = left[i] + right[i]
+```
+
+Reduction kernels combine many input values into fewer output values:
+
+```text
+sum over all elements:
+
+  output = input[0] + input[1] + input[2] + ...
+```
+
+That changes the kernel design. A reduction needs an accumulator, an initial value, a loop order, and rules for the output dtype. For example, summing `int8` values into an `int8` accumulator can overflow quickly, so real array libraries often use wider accumulation types.
+
+Reductions can use special vectorized instructions, but they are less direct than elementwise operations. For elementwise `add`, SIMD can load several values from the left array, several values from the right array, add them, and store several results. For `sum`, SIMD usually keeps several partial sums inside vector registers, then combines those partial sums at the end into one final value.
+
+```text
+SIMD-style sum reduction idea:
+
+  assume one 128-bit SIMD register
+  assume float32 values
+
+  128 bits / 32 bits per float32 = 4 lanes per register
+
+  input:        [1, 2, 3, 4, 5, 6, 7, 8]
+
+  load 1:       [1, 2, 3, 4]
+  load 2:       [5, 6, 7, 8]
+
+  vector add:   [1+5, 2+6, 3+7, 4+8]
+  partials:     [6, 8, 10, 12]
+
+  final sum:    6 + 8 + 10 + 12 = 36
+```
+
+This is why reductions often have separate kernels for contiguous arrays, strided arrays, small arrays, different dtypes, and different CPU features. The fastest path depends on memory layout and on whether the CPU supports instructions such as SSE, AVX, AVX2, AVX-512, or NEON.
+
+Axis handling decides which dimension is reduced. For a `2 x 3` matrix:
+
+```text
+input:
+
+  [[1, 2, 3],
+   [4, 5, 6]]
+
+sum over axis 0:
+
+  [5, 7, 9]     # columns are reduced
+
+sum over axis 1:
+
+  [6, 15]       # rows are reduced
+```
+
+
+### Linear algebra
+
+NumPy relies on highly optimized BLAS and LAPACK libraries for many linear algebra operations. A real project should usually call existing libraries instead of reimplementing everything.
+
+BLAS means Basic Linear Algebra Subprograms. It is a standard set of low-level routines for operations such as vector addition, dot products, matrix-vector multiplication, and matrix-matrix multiplication. These operations are simple to describe but hard to make extremely fast on real hardware.
+
+LAPACK means Linear Algebra Package. It builds on BLAS and provides higher-level algorithms such as matrix decompositions, eigenvalue routines, and solving systems of linear equations.
+
+The important idea is that BLAS and LAPACK are not one specific library. They are standard APIs. Different implementations provide those APIs with heavy optimization for different CPUs.
+
+Historically, BLAS and LAPACK were written in Fortran. Many modern implementations still expose Fortran-compatible interfaces, but their internals may use C, C++, Fortran, assembly, and CPU-specific intrinsic code. Under the hood, the fastest parts are often hand-tuned kernels for each processor family.
+
+Common implementations include:
+
+- OpenBLAS: mostly C and assembly, with kernels for many CPU architectures
+- BLIS: C framework with optimized low-level kernels
+- Intel MKL: proprietary Intel library with highly optimized CPU kernels
+- Accelerate: Apple's macOS framework, optimized for Apple platforms
+- Reference BLAS/LAPACK: mostly Fortran, useful as a correctness baseline but usually not the fastest option
+
+## Closing words
+By now, vectorization should not feel like magic anymore. It felt that way to me at first, but understanding it demystifies the trick and makes the whole thing even more wonderful. If you can see that too, I am happy, because it means you read the whole tutorial.
