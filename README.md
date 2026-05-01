@@ -21,7 +21,6 @@ It is intentionally small. It does not try to replace NumPy. It gives Python dev
   - [Quick start](#quick-start)
 - Guide map
   - [Learning levels](#learning-levels)
-  - [Source map](#source-map)
   - [Clickable reading path](#clickable-reading-path)
 - Tutorial implementation path
   - [Start here: Basic Python list API](#start-here-basic-python-list-api)
@@ -191,32 +190,7 @@ Level 2: Rust SIMD
 | 2 buffer path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
 | External baseline | NumPy | external library | Mature optimized arrays |
 
-## Source map
-
-| Concept | Source |
-|---|---|
-| Python exports | [`nano_numpy_simd/__init__.py`](nano_numpy_simd/__init__.py) |
-| Pure Python baseline | [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) |
-| PyO3 list functions | [`src/lib.rs`](src/lib.rs) |
-| PyO3 buffer functions | [`src/lib.rs`](src/lib.rs) |
-| Shared operation validation | [`src/ops.rs`](src/ops.rs) |
-| Naive Rust loop | [`src/naive_rust.rs`](src/naive_rust.rs) |
-| Scalar fallback | [`src/scalar.rs`](src/scalar.rs) |
-| Runtime dispatch | [`src/dispatch.rs`](src/dispatch.rs) |
-| x86_64 AVX2/SSE | [`src/simd_x86.rs`](src/simd_x86.rs) |
-| aarch64 NEON | [`src/simd_arm.rs`](src/simd_arm.rs) |
-| FFI source notes | [`src/ffi_explain.rs`](src/ffi_explain.rs) |
-| Assembly source notes | [`src/asm_explain.rs`](src/asm_explain.rs) |
-| Basic usage example | [`python/examples/basic_usage.py`](python/examples/basic_usage.py) |
-| List benchmark | [`python/examples/benchmark.py`](python/examples/benchmark.py) |
-| Buffer benchmark | [`python/examples/buffer_protocol_benchmark.py`](python/examples/buffer_protocol_benchmark.py) |
-| Full comparison | [`python/examples/full_performance_comparison.py`](python/examples/full_performance_comparison.py) |
-| Basic tests | [`tests/test_basic.py`](tests/test_basic.py) |
-| Error tests | [`tests/test_errors.py`](tests/test_errors.py) |
-| NumPy comparison tests | [`tests/test_against_numpy.py`](tests/test_against_numpy.py) |
-| Buffer API tests | [`tests/test_buffer_api.py`](tests/test_buffer_api.py) |
-
-This README is the main guide for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.
+**This README is the main guide for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.**
 
 ## Clickable reading path
 
