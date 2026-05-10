@@ -1,0 +1,40 @@
+README.md
+  s_8ea23ad65a7526::t_46f3cd1d16cc89 507-510,554
+  s_8ea23ad65a7526::t_1163b6d5ca784a 1614-1617
+  s_8ea23ad65a7526::t_544b9ad60eedcf 1645-1648
+  s_8ea23ad65a7526::t_6390a113d0d1d8 1505-1508
+  s_8ea23ad65a7526::t_622d3287785ba3 1595-1598
+  s_8ea23ad65a7526::t_6ab1aa0fe94e04 1195-1197,1215
+  s_8ea23ad65a7526::t_0b16cd44d10ca9 1153-1182
+  s_8ea23ad65a7526::t_0a7ffdb65489c0 467-469,503
+  s_8ea23ad65a7526::t_3f30e5bd0819a5 1234-1236,1296
+  s_8ea23ad65a7526::t_e21f33d2133aad 835-846,849-856
+  s_8ea23ad65a7526::t_1431780e56b4ee 656-681
+  s_8ea23ad65a7526::t_e6183d88970657 1407-1456
+  s_8ea23ad65a7526::t_06d4ae3421ad79 700-701,765
+  s_8ea23ad65a7526::t_2f60a384f21d8a 1563-1566
+  s_8ea23ad65a7526::t_5fa79e321afae9 570-573,593-595
+  s_8ea23ad65a7526::t_4c7acbfaa5a128 1461-1462
+  s_8ea23ad65a7526::t_64cd4c8c99e32c 1482-1485
+  s_8ea23ad65a7526::t_f13193a3a3ec7b 1580-1583
+  s_8ea23ad65a7526::t_2a82935423adc6 1711-1714
+  s_8ea23ad65a7526::t_67f49301c735ab 1734-1735
+  s_8ea23ad65a7526::t_669465db4732a0 1083-1114
+  s_8ea23ad65a7526::t_5d82bdeeafccb4 1018-1020,1023-1043,1046
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "b89c349fe23dac8abf73d60d7b397239b13ccc69",
+  "prompts": {},
+  "sessions": {
+    "s_8ea23ad65a7526": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4239fe6a-e525-48a6-aa0a-a9ba4f1a8290",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "AdilZouitine <adilzouitinegm@gmail.com>"
+    }
+  }
+}
