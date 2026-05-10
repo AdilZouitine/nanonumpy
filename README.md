@@ -86,6 +86,8 @@ NumPy allocated         0.776 ms     232.82x
 NumPy out =             0.770 ms     234.65x
 ```
 
+Read that table carefully. The Rust list API is only **1.43x** faster than pure Python, even though the inner loop is compiled. That is not a bug in the implementation, and the section [Why the list benchmark is only a little faster](#why-the-list-benchmark-is-only-a-little-faster) explains exactly where the time goes.
+
 The useful lesson for Python developers: calling Rust is not automatically fast if Python still has to convert millions of objects. The speedup shows up when data is already in a contiguous numeric buffer.
 
 The rest of this README builds up to that result step by step. We start with normal Python lists, then look at how Python calls Rust, then look at memory layout, then finally explain why SIMD needs the data to have a very specific shape in RAM.
@@ -182,13 +184,15 @@ Level 2: Rust SIMD
     one vector instruction processes several lanes
 ```
 
-| Level | Function | Source | What it teaches |
+| Level | Function | Source (inner loop) | What it teaches |
 |---|---|---|---|
 | 0 | `add_py(a, b)` | [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) | Python interpreter baseline |
 | 1 | `add_rust(a, b)` | [`src/naive_rust.rs`](src/naive_rust.rs) | Python-to-Rust speedup |
 | 2 | `add(a, b)` | [`src/dispatch.rs`](src/dispatch.rs) | SIMD dispatch, still using list conversion |
 | 2 buffer path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
 | External baseline | NumPy | external library | Mature optimized arrays |
+
+The "Source" column points at the file that holds the actual loop or dispatch logic for each level. The Rust `#[pyfunction]` entry points for `add_rust`, `add`, and `add_into` all live in [`src/lib.rs`](src/lib.rs); they then delegate into the file shown above.
 
 **This README is the main guide for the tutorial. The code files are linked from here so readers can jump directly from concept to implementation.**
 
@@ -367,7 +371,7 @@ nn.add_into(a, b, out)
 
 `add_into` returns `None`. The result is written into `out`.
 
-The detail to notice is `out = np.empty_like(a)`. The output memory already exists before the timed operation. Rust only fills it:
+The detail to notice is `out = np.empty_like(a)`. The allocation is still happening ; `np.empty_like` does allocate fresh memory every time it is called ; but it happens *before* the timed operation. Rust only fills the existing buffer. In a real program you would also reuse the same `out` across many calls, which is what amortizes the allocation away entirely:
 
 ```text
 without preallocated output:
@@ -425,7 +429,7 @@ For a deeper explanation of FFI, this video is a useful companion: [FFI explanat
 
 Python cannot directly call an ordinary Rust function because Rust has its own calling conventions, type system, ownership rules, name mangling, and memory model. PyO3 creates the CPython-compatible wrapper.
 
-The final thing Python imports is a native shared library. On Linux this is usually a `.so` file. On macOS the extension also behaves like a shared library, even though the filename commonly ends with something like `.so` for Python extension compatibility. You can think of it as:
+The final thing Python imports is a native shared library. On Linux this is an ELF `.so` file. On macOS the file is a Mach-O dynamically linked library (what macOS usually calls a `dylib`); CPython names Python extension modules `*.so` on macOS by convention regardless of the underlying binary format. You can think of it as:
 
 ```text
 Rust source code
@@ -521,7 +525,7 @@ for name in names:
     print(f"  text_signature={getattr(obj, '__text_signature__', None)!r}")
 ```
 
-Output:
+Example output (your exact `text_signature` strings depend on your PyO3 version, and may be `None` since this project does not set explicit `#[pyo3(signature = ...)]`):
 
 ```text
 ['add', 'add_into', 'add_rust', 'div', 'div_into', 'div_rust', 'mul', 'mul_into', 'mul_rust', 'sub', 'sub_into', 'sub_rust']
@@ -578,17 +582,29 @@ On macOS, you can list exported symbols with:
 nm -gU "$EXT_PATH"
 ```
 
+`-g` shows external symbols and `-U` on BSD/macOS means "do not display undefined symbols" (so you only see symbols this file actually defines).
+
 On Linux, use:
 
 ```bash
 nm -D "$EXT_PATH"
 ```
 
-Important output:
+Note: GNU `nm` and BSD `nm` interpret `-U` *opposite* ways. On GNU/Linux, `-U` means "display only undefined symbols", which is not what you want here. Use `-D` (dynamic symbols) on Linux instead.
+
+Important output on macOS:
 
 ```text
 000000000000633c T _PyInit__native
 ```
+
+On Linux you would see the same symbol without the leading underscore:
+
+```text
+000000000000633c T PyInit__native
+```
+
+Mach-O prefixes C symbol names with `_` at the linker level; ELF does not. CPython's import machinery accounts for this on each platform, so you do not have to.
 
 The `T` flag means the symbol is in the text (code) section and is exported. That symbol is exactly the `#[pymodule] fn _native(...)` function from `src/lib.rs`, after PyO3 wraps it in CPython's expected initializer signature.
 
@@ -797,6 +813,8 @@ one cache line, 64 bytes
 
 If the next loop iterations read `a[1]`, `a[2]`, and `a[3]`, those values may already be in cache. That is a cache hit: the CPU finds the data in its fast cache instead of waiting for main memory. Contiguous numeric arrays make cache hits more likely because the loop walks through neighboring addresses. Scattered Python objects make that harder because following each pointer can jump to a different place in memory.
 
+The 64-byte cache-line size used above is the common case on x86_64 and at L1 on most ARM cores. Some systems differ ; Apple Silicon, for example, uses 128-byte cache lines at certain levels of the hierarchy. The qualitative point ("one read pulls in several neighboring values") holds either way; only the exact number of neighbors changes.
+
 A Rust slice, `&[f32]`, is a borrowed view:
 
 ```text
@@ -893,7 +911,7 @@ result:            [a0+b0, a1+b1, a2+b2, a3+b3]
 
 For Python developers, a helpful mental model is: SIMD is like doing a small fixed-size list operation inside one CPU instruction. The real hardware is more complex, but that intuition explains why contiguous numeric memory matters.
 
-If you want a gentle next step, [Vectorization part 1. Intro — easyperf](https://easyperf.net/blog/2017/10/24/Vectorization_part1) shows scalar and vectorized loops side by side. The rest of the series is worth reading in this order for this project: vectorization warmup, compiler vectorization reports, vectorization width, multiversioning by data dependency, multiversioning by trip counts, and tips for writing vectorizable code.
+If you want a gentle next step, [Vectorization part 1. Intro - easyperf](https://easyperf.net/blog/2017/10/24/Vectorization_part1) shows scalar and vectorized loops side by side. The rest of the series is worth reading in this order for this project: vectorization warmup, compiler vectorization reports, vectorization width, multiversioning by data dependency, multiversioning by trip counts, and tips for writing vectorizable code.
 
 ```text
 Scalar:
@@ -919,7 +937,7 @@ The width depends on two things: the size of the vector register and the size of
 vectorization width = SIMD register size / element size
 ```
 
-For example, a 256-bit AVX2 register can hold eight `f32` values because each `f32` is 32 bits:
+For example, a 256-bit AVX register (the YMM registers introduced with AVX and reused by AVX2) can hold eight `f32` values because each `f32` is 32 bits:
 
 ```text
 256 bits / 32 bits = 8 lanes
@@ -1043,7 +1061,9 @@ fn dispatch_platform(a: &[f32], b: &[f32], out: &mut [f32], op: Op) {
 }
 ```
 
-On aarch64, NEON is part of the baseline architecture, so a runtime feature check is not needed for normal aarch64 builds. The compiler simply selects the NEON definition.
+On aarch64, NEON (Advanced SIMD) is mandatory in the baseline ARMv8-A architecture, so a runtime feature check is not needed for normal aarch64 builds. The compiler simply selects the NEON definition.
+
+A note on the SSE branch: SSE2 is required by the x86_64 ABI, so any 64-bit x86 CPU has SSE and SSE2. The runtime check for `"sse"` will therefore always succeed on x86_64. It is kept here for didactic symmetry with the AVX2 check, and as a placeholder for targets where the same dispatch shape is genuinely needed (for example, 32-bit x86).
 
 The dispatch layer is small, but it does real work. The Python function `nn.add(a, b)` does not know what CPU it is running on. The Rust dispatcher checks the target and available features, then calls the best supported implementation.
 
@@ -1053,7 +1073,9 @@ For a deeper look at why simple-looking SIMD problems become subtle, read [Under
 
 After dispatch chooses AVX2 on x86_64, the loop can use 256-bit YMM registers. This is the widest x86_64 path implemented in the tutorial.
 
-AVX2 processes 8 `f32` values per iteration:
+A short naming note: the 256-bit YMM registers and the 256-bit float operations such as `_mm256_add_ps` were introduced by **AVX** (2011), not AVX2 (2013). AVX2 mostly added 256-bit *integer* operations, gather instructions, and similar. This project gates the loop on AVX2 because runtime detection of AVX2 implies AVX is also present, and "AVX2" is a more meaningful capability label than "AVX". When you read `_mm256_*_ps` in the code, those are AVX intrinsics running inside an AVX2-gated function.
+
+The loop processes 8 `f32` values per iteration:
 
 ```text
 while i + 8 <= len:
@@ -1188,7 +1210,7 @@ Key intrinsics used:
 - `vdivq_f32`: divide 4 lanes on AArch64
 - `vst1q_f32`: store 4 contiguous `f32` results
 
-This project does not fake NEON division with reciprocal approximations. It uses the stable AArch64 intrinsic.
+A historical note on NEON division: 32-bit ARMv7 NEON has no `vdivq_f32` instruction at all, which is why older code commonly fakes it with a reciprocal estimate (`vrecpeq_f32`) plus one or two Newton-Raphson refinement steps. AArch64 (ARMv8) added a real lane-wise float divide, exposed in Rust as `vdivq_f32`. This project targets only AArch64, so it uses the real instruction and does not need the reciprocal trick.
 
 ## Inspecting generated assembly
 
@@ -1734,4 +1756,5 @@ Common implementations include:
 </details>
 
 ## Closing words
+
 By now, vectorization should not feel like magic anymore. It felt that way to me at first, but understanding it demystifies the trick and makes the whole thing even more wonderful. If you can see that too, I am happy, because it means you read the whole tutorial.
