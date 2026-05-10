@@ -1,0 +1,29 @@
+pyproject.toml
+  s_ed3efdafe41420::t_01bc775e29b398 10,25-51
+Cargo.toml
+  s_ed3efdafe41420::t_9a9f6adc6c09c6 2
+README.md
+  s_ed3efdafe41420::t_c3040a5d3503f4 1381
+  s_ed3efdafe41420::t_6559f8688ad575 1383
+  s_ed3efdafe41420::t_cbdedf985ff6da 251
+  s_ed3efdafe41420::t_86aa4e57e84aee 189,205
+  s_ed3efdafe41420::t_70d7bfaed42b97 139,203
+  s_ed3efdafe41420::t_35c51f8cb3b3f0 204,276,629
+  s_ed3efdafe41420::t_1e2cb894d718c3 213,1382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "706c19eb67b3c92f3d15b1c2107c6747a84c964d",
+  "prompts": {},
+  "sessions": {
+    "s_ed3efdafe41420": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e429bd9e-07cd-4da5-b70a-bc52d28d1458",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "AdilZouitine <adilzouitinegm@gmail.com>"
+    }
+  }
+}
