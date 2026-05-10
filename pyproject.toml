@@ -7,7 +7,7 @@ name = "nano-numpy-simd"
 version = "0.1.0"
 description = "Tiny educational NumPy-like package implemented in Rust with SIMD dispatch."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [{ name = "nano-numpy-simd contributors" }]
 dependencies = []
@@ -22,4 +22,30 @@ dev = [
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "nano_numpy_simd._native"
-python-source = "."
+python-source = "python"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["python", "tests", "examples"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["python", "tests"]

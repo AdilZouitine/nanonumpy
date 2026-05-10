@@ -136,7 +136,7 @@ Use `uv` for Python dependency management and `maturin` to build the Rust extens
 ```bash
 uv sync --extra dev
 uv run maturin develop --release
-uv run python python/examples/basic_usage.py
+uv run python examples/basic_usage.py
 ```
 
 Example inputs:
@@ -186,7 +186,7 @@ Level 2: Rust SIMD
 
 | Level | Function | Source (inner loop) | What it teaches |
 |---|---|---|---|
-| 0 | `add_py(a, b)` | [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) | Python interpreter baseline |
+| 0 | `add_py(a, b)` | [`python/nano_numpy_simd/pure_python.py`](python/nano_numpy_simd/pure_python.py) | Python interpreter baseline |
 | 1 | `add_rust(a, b)` | [`src/naive_rust.rs`](src/naive_rust.rs) | Python-to-Rust speedup |
 | 2 | `add(a, b)` | [`src/dispatch.rs`](src/dispatch.rs) | SIMD dispatch, still using list conversion |
 | 2 buffer path | `add_into(a, b, out)` | [`src/lib.rs`](src/lib.rs) | Buffer protocol, preallocated output |
@@ -200,9 +200,9 @@ The "Source" column points at the file that holds the actual loop or dispatch lo
 
 The README explains the concepts in prose, but the repository is meant to be clicked through. If you are a Python developer new to Rust extensions, read the code in this order:
 
-1. [`python/examples/basic_usage.py`](python/examples/basic_usage.py) shows the public API.
-2. [`nano_numpy_simd/__init__.py`](nano_numpy_simd/__init__.py) re-exports Python and Rust functions.
-3. [`nano_numpy_simd/pure_python.py`](nano_numpy_simd/pure_python.py) shows the pure Python baseline.
+1. [`examples/basic_usage.py`](examples/basic_usage.py) shows the public API.
+2. [`python/nano_numpy_simd/__init__.py`](python/nano_numpy_simd/__init__.py) re-exports Python and Rust functions.
+3. [`python/nano_numpy_simd/pure_python.py`](python/nano_numpy_simd/pure_python.py) shows the pure Python baseline.
 4. [`src/lib.rs`](src/lib.rs) is the PyO3 boundary where Python calls enter Rust.
 5. [`src/ops.rs`](src/ops.rs) validates input lengths and allocates list-style results.
 6. [`src/naive_rust.rs`](src/naive_rust.rs) shows a plain compiled Rust loop.
@@ -210,7 +210,7 @@ The README explains the concepts in prose, but the repository is meant to be cli
 8. [`src/dispatch.rs`](src/dispatch.rs) chooses AVX2, SSE, NEON, or scalar.
 9. [`src/simd_x86.rs`](src/simd_x86.rs) contains x86_64 AVX2/SSE intrinsics.
 10. [`src/simd_arm.rs`](src/simd_arm.rs) contains aarch64 NEON intrinsics.
-11. [`python/examples/buffer_protocol_benchmark.py`](python/examples/buffer_protocol_benchmark.py) shows why preallocated buffers matter.
+11. [`examples/buffer_protocol_benchmark.py`](examples/buffer_protocol_benchmark.py) shows why preallocated buffers matter.
 12. [`tests/test_buffer_api.py`](tests/test_buffer_api.py) documents the fast-path safety rules with executable examples.
 
 ## Start here: Basic Python list API
@@ -248,7 +248,7 @@ Python code
   |
   | nn.add(a, b)
   v
-nano_numpy_simd/__init__.py
+python/nano_numpy_simd/__init__.py
   |
   | re-exported from compiled module
   v
@@ -273,7 +273,7 @@ Python receives list
 
 Clickable version of that path:
 
-- Python import surface: [`nano_numpy_simd/__init__.py`](nano_numpy_simd/__init__.py)
+- Python import surface: [`python/nano_numpy_simd/__init__.py`](python/nano_numpy_simd/__init__.py)
 - Rust `add` binding: [`src/lib.rs`](src/lib.rs)
 - shared validation and allocation: [`src/ops.rs`](src/ops.rs)
 - runtime feature selection: [`src/dispatch.rs`](src/dispatch.rs)
@@ -626,7 +626,7 @@ print(_native.add_rust([1.0, 2.0], [10.0, 20.0]))
 # [11.0, 22.0]
 ```
 
-The public package re-exports those native functions in [`nano_numpy_simd/__init__.py`](nano_numpy_simd/__init__.py), so this is the recommended user-facing version:
+The public package re-exports those native functions in [`python/nano_numpy_simd/__init__.py`](python/nano_numpy_simd/__init__.py), so this is the recommended user-facing version:
 
 ```python
 import nano_numpy_simd as nn
@@ -1378,9 +1378,9 @@ These numbers are examples from one machine. Run the benchmark locally.
 ```bash
 uv sync --extra dev
 uv run maturin develop --release
-uv run python python/examples/benchmark.py
-uv run python python/examples/buffer_protocol_benchmark.py
-uv run python python/examples/full_performance_comparison.py
+uv run python examples/benchmark.py
+uv run python examples/buffer_protocol_benchmark.py
+uv run python examples/full_performance_comparison.py
 ```
 
 For Rust-only benchmarking:
