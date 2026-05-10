@@ -14,9 +14,6 @@ pub mod simd_arm;
 #[cfg(target_arch = "x86_64")]
 pub mod simd_x86;
 
-pub mod asm_explain;
-pub mod ffi_explain;
-
 use ops::Op;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyValueError;
